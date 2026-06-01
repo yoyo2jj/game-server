@@ -80,30 +80,45 @@ void TcpServer::handleNewConnection(){
 		epoll_ctl(epollFd_,EPOLL_CTL_ADD,clientFd,&ev);
 
 		std::cout<<"[Server] New connection, fd="<<clientFd<<std::endl;
+		buffers_[clientFd];
 	}
 }
 
 void TcpServer::handleClientData(int clientFd){
 	char buf[1024];
+	Buffer& buffer=buffers_[clientFd];
+
 	//ET模式下必须循环read，直到EAGAIN
 	while(true){
 		ssize_t n=read(clientFd,buf,sizeof(buf));
 		if(n<0){
 			if(errno==EAGAIN||errno==EWOULDBLOCK) break;//数据读完了
 			std::cerr<<"[Server] read() error, fd="<<clientFd<<std::endl;
+			epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
 			close(clientFd);
+			buffers_.erase(clientFd);
 			break;
 		}else if(n==0){
 			//客户端断开连接
 			std::cout<<"[Server] Client disconnected, fd="<<clientFd<<std::endl;
 			epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
 			close(clientFd);
-			break;
+			buffers_.erase(clientFd);
+			return;
 		}else{
-			//Echo回去
-			write(clientFd,buf,n);
-			std::cout<<"[Server] Echo "<<n<<" bytes,fd="<<clientFd<<std::endl;
+			buffer.append(buf,n);
 		}
+	}
+
+	//尝试从Buffer里取出完整消息
+	std::string message;
+	while(buffer.retrieveMessage(message)){
+		std::cout<<"[Server] Got message: "<<message<<std::endl;
+
+		//原样echo回去，带上包头
+		uint32_t bodyLen=message.size();
+		write(clientFd,&bodyLen,4);
+		write(clientFd,message.c_str(),bodyLen);
 	}
 }
 

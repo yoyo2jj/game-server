@@ -1,6 +1,8 @@
 #pragma once
+#include"server/Buffer.h"
 #include<sys/epoll.h>
 #include<vector>
+#include<unordered_map>
 
 class TcpServer{
 public:
@@ -21,4 +23,7 @@ private:
 	int epollFd_;
 	int maxEvents_;
 	std::vector<epoll_event> events_;
+
+	//每个连接fd对应一个Buffer
+	std::unordered_map<int,Buffer> buffers_;
 };
