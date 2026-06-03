@@ -18,6 +18,15 @@ private:
 	void handleClientData(int clientFd);
 	void setNonBlocking(int fd);
 
+	//消息分支：根据消息类型调用对应处理函数
+	void dispatchMessage(int clientFd,uint16_t msgType,const std::string& body);
+
+	//具体消息处理函数
+	void onLoginRequest(int clientFd,const std::string& body);
+
+	//发送一条protobuf消息给客户端
+	void sendMessage(int clientFd,uint16_t msgType,const std::string& body);
+
 	int port_;
 	int listenFd_;
 	int epollFd_;

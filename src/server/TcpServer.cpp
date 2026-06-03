@@ -1,4 +1,5 @@
 #include"server/TcpServer.h"
+#include"proto/game.pb.h"
 #include<iostream>
 #include<cstring>
 #include<stdexcept>
@@ -110,16 +111,65 @@ void TcpServer::handleClientData(int clientFd){
 		}
 	}
 
-	//尝试从Buffer里取出完整消息
-	std::string message;
-	while(buffer.retrieveMessage(message)){
-		std::cout<<"[Server] Got message: "<<message<<std::endl;
-
-		//原样echo回去，带上包头
-		uint32_t bodyLen=message.size();
-		write(clientFd,&bodyLen,4);
-		write(clientFd,message.c_str(),bodyLen);
+	//循环读出所有完整消息
+	uint16_t msgType;
+	std::string body;
+	while(buffer.retrieveMessage(msgType,body)){
+		dispatchMessage(clientFd,msgType,body);
 	}
+}
+
+void TcpServer::dispatchMessage(int clientFd,uint16_t msgType,const std::string& body){
+	//根据消息类型，分发到对应处理函数
+	switch(msgType){
+		case 1://MSG_LOGIN_REQUEST
+			onLoginRequest(clientFd,body);
+			break;
+		default:
+			std::cerr<<"[Server] Unknown msgType="<<msgType<<std::endl;
+			break;
+	}
+}
+
+void TcpServer::onLoginRequest(int clientFd,const std::string& body){
+	//反序列化protobuf消息
+	game::LoginRequest req;
+	if(!req.ParseFromString(body)){
+		std::cerr<<"[Server] Failed to parse LoginRequest"<<std::endl;
+		return;
+	}
+
+	std::cout<<"[Server] LoginRequest from fd="<<clientFd
+		<<" username="<<req.username()<<std::endl;
+
+	//简单逻辑：用户名不为空就登录成功
+	game::LoginResponse resp;
+	if(!req.username().empty()){
+		resp.set_success(true);
+		resp.set_message("Welcome, "+req.username()+"!");
+	}else {
+		resp.set_success(false);
+		resp.set_message("Username cannot be empty");
+	}
+
+	//序列化并发送
+	std::string respBody;
+	resp.SerializeToString(&respBody);
+	sendMessage(clientFd,2,respBody);//2=MSG_LOGIN_RESPONSE
+}
+
+void TcpServer::sendMessage(int clientFd,uint16_t msgType,const std::string& body){
+	//总长度=2字节消息类型+body长度
+	uint32_t totalLen=2+body.size();
+
+	//按协议格式拼好再一次性发出
+	std::string packet;
+	packet.resize(4+2+body.size());
+	memcpy(&packet[0],&totalLen,4);
+	memcpy(&packet[4],&msgType,2);
+	memcpy(&packet[6],body.c_str(),packet.size());
+	
+	write(clientFd,packet.c_str(),packet.size());
 }
 
 void TcpServer::run(){

@@ -11,7 +11,7 @@ public:
 
 	//尝试从缓冲区取出一条完整信息，写入out
 	//成功返回true，数据不够返回false
-	bool retrieveMessage(std::string& out);
+	bool retrieveMessage(uint16_t& msgType,std::string& body);
 
 	//当前缓冲区里有多少字节
 	size_t readableBytes() const;
@@ -21,5 +21,6 @@ private:
 
 	//包头固定4字节，存的是包体长度
 	static const int HEADER_SIZE=4;
+	static const int TYPE_SIZE=2;
 };
 
