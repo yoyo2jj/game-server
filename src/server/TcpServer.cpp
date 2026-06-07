@@ -8,6 +8,7 @@
 #include<netinet/in.h>
 #include<sys/socket.h>
 #include<sys/epoll.h>
+#include<vector>
 
 TcpServer::TcpServer(int port,int maxEvents)
 	:port_(port),listenFd_(-1),epollFd_(-1),maxEvents_(maxEvents){
@@ -114,6 +115,8 @@ void TcpServer::handleClientData(int clientFd){
 			return;
 		}else{
 			conn.buffer().append(buf,n);
+			//每次收到数据，更新活跃时间
+			conn.updateActiveTime();
 		}
 	}
 
@@ -130,6 +133,9 @@ void TcpServer::dispatchMessage(Connection& conn,uint16_t msgType,const std::str
 	switch(msgType){
 		case 1://MSG_LOGIN_REQUEST
 			onLoginRequest(conn,body);
+			break;
+		case 3:
+			onHeartbeat(conn,body);
 			break;
 		default:
 			std::cerr<<"[Server] Unknown msgType="<<msgType<<std::endl;
@@ -167,6 +173,34 @@ void TcpServer::onLoginRequest(Connection& conn,const std::string& body){
 	sendMessage(conn.fd(),2,respBody);//2=MSG_LOGIN_RESPONSE
 }
 
+void TcpServer::onHeartbeat(Connection& conn,const std::string& body){
+	game::Heartbeat hb;
+	if(!hb.ParseFromString(body)) return;
+
+	std::cout<<"[Server] Heartbeat from fd="<<conn.fd()
+		<<" username="<<conn.username()<<std::endl;
+
+	//原样回给客户端
+	std::string respBody;
+	hb.SerializeToString(&respBody);
+	sendMessage(conn.fd(),3,respBody);
+}
+
+void TcpServer::checkHeartbeat(){
+	//先收集要踢掉的fd，避免遍历时修改map
+	std::vector<int> toClose;
+	for(auto& [fd,conn]:connections_) {
+		if(conn->idleSeconds()>HEARTBEAT_TIMEOUT){
+			std::cout<<"[Server] Heartbeat timeout, fd="<<fd
+				 <<" username="<<conn->username()<<std::endl;
+			toClose.push_back(fd);
+		}
+	}
+	for(int fd:toClose){
+		closeConnection(fd);
+	}
+}
+
 void TcpServer::sendMessage(int clientFd,uint16_t msgType,const std::string& body){
 	//总长度=2字节消息类型+body长度
 	uint32_t totalLen=2+body.size();
@@ -184,7 +218,8 @@ void TcpServer::sendMessage(int clientFd,uint16_t msgType,const std::string& bod
 void TcpServer::run(){
 	std::cout<<"[Server] Running..."<<std::endl;
 	while(true){
-		int nfds=epoll_wait(epollFd_,events_.data(),maxEvents_,-1);
+		//epoll_wait超时设为10秒，到时候就去检查心跳
+		int nfds=epoll_wait(epollFd_,events_.data(),maxEvents_,CHECK_INTERVAL*1000);
 		for(int i=0;i<nfds;i++){
 			int fd=events_[i].data.fd;
 			if(fd==listenFd_){
@@ -193,5 +228,7 @@ void TcpServer::run(){
 				handleClientData(fd);
 			}
 		}
+		//每次epoll_wait返回后都检查一次心跳
+		checkHeartbeat();
 	}
 }

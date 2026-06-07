@@ -26,8 +26,13 @@ private:
 	//具体消息处理函数
 	void onLoginRequest(Connection& conn,const std::string& body);
 
+	void onHeartbeat(Connection& conn,const std::string& body);
+
 	//发送一条protobuf消息给客户端
 	void sendMessage(int clientFd,uint16_t msgType,const std::string& body);
+
+	//检查所有连接，踢掉超时的
+	void checkHeartbeat();
 
 	int port_;
 	int listenFd_;
@@ -37,4 +42,9 @@ private:
 
 	//每个连接fd对应一个Connection
 	std::unordered_map<int,std::shared_ptr<Connection>> connections_;
+
+	//超时阈值：60秒没有数据就踢掉
+	static const int HEARTBEAT_TIMEOUT=60;
+	//每10秒检查一次
+	static const int CHECK_INTERVAL=10;
 };

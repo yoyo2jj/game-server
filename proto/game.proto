@@ -7,6 +7,7 @@ enum MsgType{
 	MSG_UNKNOWN=0;
 	MSG_LOGIN_REQUEST=1;
 	MSG_LOGIN_RESPONSE=2;
+	MSG_HEARTBEAT=3;
 }
 
 //登录请求：客户端发给服务器
@@ -21,3 +22,7 @@ message LoginResponse{
 	string message=2; //成功or失败的说明
 }
 
+//心跳包，客户端定期发，服务器原样回
+message Heartbeat{
+	int64 timestamp=1;
+}

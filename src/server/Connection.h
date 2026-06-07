@@ -1,6 +1,7 @@
 #pragma once
 #include"server/Buffer.h"
 #include<string>
+#include<chrono>
 
 class Connection{
 public:
@@ -23,11 +24,20 @@ public:
 	int roomId() const { return roomId_; }
 	void setRoomId(int id) { roomId_=id; }
 
+	//每次收到数据时调用，更新活跃时间
+	void updateActiveTime();
+
+	//距离上次活跃过了多少秒
+	int idleSeconds() const;
+
 private:
 	int fd_;
 	Buffer buffer_;
 	bool isLoggedIn_=false;
 	std::string username_;
 	int roomId_=-1;
+
+	//最后活跃时间
+	std::chrono::steady_clock::time_point lastActiveTime_;
 };
 	

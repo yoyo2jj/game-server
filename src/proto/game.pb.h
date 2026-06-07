@@ -46,6 +46,9 @@ struct TableStruct_game_2eproto {
 };
 extern const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_game_2eproto;
 namespace game {
+class Heartbeat;
+struct HeartbeatDefaultTypeInternal;
+extern HeartbeatDefaultTypeInternal _Heartbeat_default_instance_;
 class LoginRequest;
 struct LoginRequestDefaultTypeInternal;
 extern LoginRequestDefaultTypeInternal _LoginRequest_default_instance_;
@@ -54,6 +57,7 @@ struct LoginResponseDefaultTypeInternal;
 extern LoginResponseDefaultTypeInternal _LoginResponse_default_instance_;
 }  // namespace game
 PROTOBUF_NAMESPACE_OPEN
+template<> ::game::Heartbeat* Arena::CreateMaybeMessage<::game::Heartbeat>(Arena*);
 template<> ::game::LoginRequest* Arena::CreateMaybeMessage<::game::LoginRequest>(Arena*);
 template<> ::game::LoginResponse* Arena::CreateMaybeMessage<::game::LoginResponse>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
@@ -63,12 +67,13 @@ enum MsgType : int {
   MSG_UNKNOWN = 0,
   MSG_LOGIN_REQUEST = 1,
   MSG_LOGIN_RESPONSE = 2,
+  MSG_HEARTBEAT = 3,
   MsgType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
   MsgType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
 };
 bool MsgType_IsValid(int value);
 constexpr MsgType MsgType_MIN = MSG_UNKNOWN;
-constexpr MsgType MsgType_MAX = MSG_LOGIN_RESPONSE;
+constexpr MsgType MsgType_MAX = MSG_HEARTBEAT;
 constexpr int MsgType_ARRAYSIZE = MsgType_MAX + 1;
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* MsgType_descriptor();
@@ -418,6 +423,154 @@ class LoginResponse final :
   union { Impl_ _impl_; };
   friend struct ::TableStruct_game_2eproto;
 };
+// -------------------------------------------------------------------
+
+class Heartbeat final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:game.Heartbeat) */ {
+ public:
+  inline Heartbeat() : Heartbeat(nullptr) {}
+  ~Heartbeat() override;
+  explicit PROTOBUF_CONSTEXPR Heartbeat(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  Heartbeat(const Heartbeat& from);
+  Heartbeat(Heartbeat&& from) noexcept
+    : Heartbeat() {
+    *this = ::std::move(from);
+  }
+
+  inline Heartbeat& operator=(const Heartbeat& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline Heartbeat& operator=(Heartbeat&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const Heartbeat& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const Heartbeat* internal_default_instance() {
+    return reinterpret_cast<const Heartbeat*>(
+               &_Heartbeat_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    2;
+
+  friend void swap(Heartbeat& a, Heartbeat& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(Heartbeat* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(Heartbeat* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  Heartbeat* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<Heartbeat>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const Heartbeat& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const Heartbeat& from) {
+    Heartbeat::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(Heartbeat* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "game.Heartbeat";
+  }
+  protected:
+  explicit Heartbeat(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kTimestampFieldNumber = 1,
+  };
+  // int64 timestamp = 1;
+  void clear_timestamp();
+  int64_t timestamp() const;
+  void set_timestamp(int64_t value);
+  private:
+  int64_t _internal_timestamp() const;
+  void _internal_set_timestamp(int64_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:game.Heartbeat)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    int64_t timestamp_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_game_2eproto;
+};
 // ===================================================================
 
 
@@ -603,9 +756,35 @@ inline void LoginResponse::set_allocated_message(std::string* message) {
   // @@protoc_insertion_point(field_set_allocated:game.LoginResponse.message)
 }
 
+// -------------------------------------------------------------------
+
+// Heartbeat
+
+// int64 timestamp = 1;
+inline void Heartbeat::clear_timestamp() {
+  _impl_.timestamp_ = int64_t{0};
+}
+inline int64_t Heartbeat::_internal_timestamp() const {
+  return _impl_.timestamp_;
+}
+inline int64_t Heartbeat::timestamp() const {
+  // @@protoc_insertion_point(field_get:game.Heartbeat.timestamp)
+  return _internal_timestamp();
+}
+inline void Heartbeat::_internal_set_timestamp(int64_t value) {
+  
+  _impl_.timestamp_ = value;
+}
+inline void Heartbeat::set_timestamp(int64_t value) {
+  _internal_set_timestamp(value);
+  // @@protoc_insertion_point(field_set:game.Heartbeat.timestamp)
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 
