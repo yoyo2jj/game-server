@@ -62,6 +62,13 @@ void TcpServer::initEpoll(){
 }
 
 void TcpServer::closeConnection(int clientFd){
+	auto it=connections_.find(clientFd);
+	if(it!=connections_.end()){
+		int roomId=it->second->roomId();
+		if(roomId!=-1){
+			roomManager_.leaveRoom(roomId,clientFd);
+		}
+	}
 	epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
 	close(clientFd);
 	connections_.erase(clientFd);
@@ -131,12 +138,10 @@ void TcpServer::handleClientData(int clientFd){
 void TcpServer::dispatchMessage(Connection& conn,uint16_t msgType,const std::string& body){
 	//根据消息类型，分发到对应处理函数
 	switch(msgType){
-		case 1://MSG_LOGIN_REQUEST
-			onLoginRequest(conn,body);
-			break;
-		case 3:
-			onHeartbeat(conn,body);
-			break;
+		case 1: onLoginRequest(conn,body);      break;
+		case 3:	onHeartbeat(conn,body);         break;
+		case 4: onCreateRoomRequest(conn,body); break;
+		case 6: onJoinRoomRequest(conn,body);   break;
 		default:
 			std::cerr<<"[Server] Unknown msgType="<<msgType<<std::endl;
 			break;
@@ -184,6 +189,114 @@ void TcpServer::onHeartbeat(Connection& conn,const std::string& body){
 	std::string respBody;
 	hb.SerializeToString(&respBody);
 	sendMessage(conn.fd(),3,respBody);
+}
+
+void TcpServer::onCreateRoomRequest(Connection& conn,const std::string& body){
+	//必须先登录才能创建房间
+	if(!conn.isLoggedIn()){
+		game::CreateRoomResponse resp;
+		resp.set_success(false);
+		resp.set_message("Please login first");
+		std::string respBody;
+		resp.SerializeToString(&respBody);
+		return;
+	}
+
+	//已经在房间里了
+	if(conn.roomId()!=-1){
+		game::CreateRoomResponse resp;
+		resp.set_success(false);
+		resp.set_message("Already in a room");
+		std::string respBody;
+		resp.SerializeToString(&respBody);
+		sendMessage(conn.fd(),5,respBody);
+		return;
+	}
+
+	int roomId=roomManager_.createRoom();
+	Room* room=roomManager_.findRoom(roomId);
+	room->addPlayer(conn.fd(),conn.username());
+	conn.setRoomId(roomId);
+
+	std::cout<<"[Server] Room "<<roomId<<" created by "<<conn.username()<<std::endl;
+
+	game::CreateRoomResponse resp;
+	resp.set_success(true);
+	resp.set_room_id(roomId);
+	resp.set_message("Room created,waiting for opponent...");
+	std::string respBody;
+	resp.SerializeToString(&respBody);
+	sendMessage(conn.fd(),5,respBody);
+}
+
+void TcpServer::onJoinRoomRequest(Connection& conn,const std::string& body){
+	game::JoinRoomRequest req;
+	if(!req.ParseFromString(body)) return;
+
+	if(!conn.isLoggedIn()){
+		game::JoinRoomResponse resp;
+		resp.set_success(false);
+		resp.set_message("Please login first");
+		std::string respBody;
+		resp.SerializeToString(&respBody);
+		sendMessage(conn.fd(),7,respBody);
+		return;
+	}
+
+	Room* room=roomManager_.findRoom(req.room_id());
+	if(!room){
+		game::JoinRoomResponse resp;
+		resp.set_success(false);
+		resp.set_message("Room not found");
+		std::string respBody;
+		resp.SerializeToString(&respBody);
+		sendMessage(conn.fd(),7,respBody);
+		return;
+	}
+
+	if(room->isFull()){
+		game::JoinRoomResponse resp;
+		resp.set_success(false);
+		resp.set_message("Room is full");
+		std::string respBody;
+		resp.SerializeToString(&respBody);
+		sendMessage(conn.fd(),7,respBody);
+		return;
+	}
+
+	room->addPlayer(conn.fd(),conn.username());
+	conn.setRoomId(req.room_id());
+
+	std::cout<<"[Server] "<<conn.username()<<"joined room"<<req.room_id()<<std::endl;
+
+	//先回复加入成功
+	game::JoinRoomResponse resp;
+	resp.set_success(true);
+	resp.set_message("Joined room successfully");
+	std::string respBody;
+	resp.SerializeToString(&respBody);
+	sendMessage(conn.fd(),7,respBody);
+
+	//房间满了，广播GameStart
+	if(room->isFull()){
+		game::GameStart gs;
+		gs.set_room_id(req.room_id());
+		for(const auto& name:room->usernames()){
+			gs.add_usernames(name);
+		}
+		std::string gsBody;
+		gs.SerializeToString(&gsBody);
+		broadcastToRoom(req.room_id(),8,gsBody);
+		std::cout<<"[Server] Game started in room "<<req.room_id()<<std::endl;
+	}
+}
+
+void TcpServer::broadcastToRoom(int roomId,uint16_t msgType,const std::string& body){
+	Room* room=roomManager_.findRoom(roomId);
+	if(!room) return;
+	for(int fd:room->playerFds()){
+		sendMessage(fd,msgType,body);
+	}
 }
 
 void TcpServer::checkHeartbeat(){

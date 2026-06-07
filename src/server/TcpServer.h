@@ -1,5 +1,6 @@
 #pragma once
 #include"server/Connection.h"
+#include"server/RoomManager.h"
 #include<sys/epoll.h>
 #include<vector>
 #include<unordered_map>
@@ -28,6 +29,13 @@ private:
 
 	void onHeartbeat(Connection& conn,const std::string& body);
 
+	void onCreateRoomRequest(Connection& conn,const std::string& body);
+
+	void onJoinRoomRequest(Connection& conn,const std::string& body);
+
+	//广播消息给房间内所有玩家
+	void broadcastToRoom(int roomId,uint16_t msgType,const std::string& body);
+
 	//发送一条protobuf消息给客户端
 	void sendMessage(int clientFd,uint16_t msgType,const std::string& body);
 
@@ -42,6 +50,8 @@ private:
 
 	//每个连接fd对应一个Connection
 	std::unordered_map<int,std::shared_ptr<Connection>> connections_;
+
+	RoomManager roomManager_;
 
 	//超时阈值：60秒没有数据就踢掉
 	static const int HEARTBEAT_TIMEOUT=60;

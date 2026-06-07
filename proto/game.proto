@@ -8,6 +8,11 @@ enum MsgType{
 	MSG_LOGIN_REQUEST=1;
 	MSG_LOGIN_RESPONSE=2;
 	MSG_HEARTBEAT=3;
+	MSG_CREATE_ROOM_REQUEST=4;
+	MSG_CREATE_ROOM_RESPONSE=5;
+	MSG_JOIN_ROOM_REQUEST=6;
+	MSG_JOIN_ROOM_RESPONSE=7;
+	MSG_GAME_START=8;
 }
 
 //登录请求：客户端发给服务器
@@ -26,3 +31,27 @@ message LoginResponse{
 message Heartbeat{
 	int64 timestamp=1;
 }
+
+message CreateRoomRequest{}
+
+message CreateRoomResponse{
+	bool success=1;
+	int32 room_id=2;
+	string message=3;
+}
+
+message JoinRoomRequest{
+	int32 room_id=1;
+}
+
+message JoinRoomResponse{
+	bool success=1;
+	string message=2;
+}
+
+//房间满了，广播给房间内所有人
+message GameStart{
+	int32 room_id=1;
+	repeated string usernames=2;
+}
+
