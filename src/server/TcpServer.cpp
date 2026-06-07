@@ -60,6 +60,13 @@ void TcpServer::initEpoll(){
 	epoll_ctl(epollFd_,EPOLL_CTL_ADD,listenFd_,&ev);
 }
 
+void TcpServer::closeConnection(int clientFd){
+	epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
+	close(clientFd);
+	connections_.erase(clientFd);
+	std::cout<<"[Server] Connection closed, fd="<<clientFd<<std::endl;
+}
+
 void TcpServer::handleNewConnection(){
 	//ET模式下必须循环accept，直到EAGAIN
 	while(true){
@@ -80,14 +87,18 @@ void TcpServer::handleNewConnection(){
 		ev.data.fd=clientFd;
 		epoll_ctl(epollFd_,EPOLL_CTL_ADD,clientFd,&ev);
 
+		//为新连接创建Connection对象
+		connections_[clientFd]=std::make_shared<Connection>(clientFd);
 		std::cout<<"[Server] New connection, fd="<<clientFd<<std::endl;
-		buffers_[clientFd];
 	}
 }
 
 void TcpServer::handleClientData(int clientFd){
+	auto it=connections_.find(clientFd);
+	if(it==connections_.end()) return;
+	Connection& conn=*it->second;
+
 	char buf[1024];
-	Buffer& buffer=buffers_[clientFd];
 
 	//ET模式下必须循环read，直到EAGAIN
 	while(true){
@@ -95,35 +106,30 @@ void TcpServer::handleClientData(int clientFd){
 		if(n<0){
 			if(errno==EAGAIN||errno==EWOULDBLOCK) break;//数据读完了
 			std::cerr<<"[Server] read() error, fd="<<clientFd<<std::endl;
-			epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
-			close(clientFd);
-			buffers_.erase(clientFd);
-			break;
+			closeConnection(clientFd);
+			return;
 		}else if(n==0){
 			//客户端断开连接
-			std::cout<<"[Server] Client disconnected, fd="<<clientFd<<std::endl;
-			epoll_ctl(epollFd_,EPOLL_CTL_DEL,clientFd,nullptr);
-			close(clientFd);
-			buffers_.erase(clientFd);
+			closeConnection(clientFd);
 			return;
 		}else{
-			buffer.append(buf,n);
+			conn.buffer().append(buf,n);
 		}
 	}
 
 	//循环读出所有完整消息
 	uint16_t msgType;
 	std::string body;
-	while(buffer.retrieveMessage(msgType,body)){
-		dispatchMessage(clientFd,msgType,body);
+	while(conn.buffer().retrieveMessage(msgType,body)){
+		dispatchMessage(conn,msgType,body);
 	}
 }
 
-void TcpServer::dispatchMessage(int clientFd,uint16_t msgType,const std::string& body){
+void TcpServer::dispatchMessage(Connection& conn,uint16_t msgType,const std::string& body){
 	//根据消息类型，分发到对应处理函数
 	switch(msgType){
 		case 1://MSG_LOGIN_REQUEST
-			onLoginRequest(clientFd,body);
+			onLoginRequest(conn,body);
 			break;
 		default:
 			std::cerr<<"[Server] Unknown msgType="<<msgType<<std::endl;
@@ -131,7 +137,7 @@ void TcpServer::dispatchMessage(int clientFd,uint16_t msgType,const std::string&
 	}
 }
 
-void TcpServer::onLoginRequest(int clientFd,const std::string& body){
+void TcpServer::onLoginRequest(Connection& conn,const std::string& body){
 	//反序列化protobuf消息
 	game::LoginRequest req;
 	if(!req.ParseFromString(body)){
@@ -139,12 +145,15 @@ void TcpServer::onLoginRequest(int clientFd,const std::string& body){
 		return;
 	}
 
-	std::cout<<"[Server] LoginRequest from fd="<<clientFd
+	std::cout<<"[Server] LoginRequest from fd="<<conn.fd()
 		<<" username="<<req.username()<<std::endl;
 
 	//简单逻辑：用户名不为空就登录成功
 	game::LoginResponse resp;
 	if(!req.username().empty()){
+		//登录成功，把状态存到Connection里
+		conn.setLoggedIn(true);
+		conn.setUsername(req.username());
 		resp.set_success(true);
 		resp.set_message("Welcome, "+req.username()+"!");
 	}else {
@@ -155,7 +164,7 @@ void TcpServer::onLoginRequest(int clientFd,const std::string& body){
 	//序列化并发送
 	std::string respBody;
 	resp.SerializeToString(&respBody);
-	sendMessage(clientFd,2,respBody);//2=MSG_LOGIN_RESPONSE
+	sendMessage(conn.fd(),2,respBody);//2=MSG_LOGIN_RESPONSE
 }
 
 void TcpServer::sendMessage(int clientFd,uint16_t msgType,const std::string& body){
@@ -167,7 +176,7 @@ void TcpServer::sendMessage(int clientFd,uint16_t msgType,const std::string& bod
 	packet.resize(4+2+body.size());
 	memcpy(&packet[0],&totalLen,4);
 	memcpy(&packet[4],&msgType,2);
-	memcpy(&packet[6],body.c_str(),packet.size());
+	memcpy(&packet[6],body.c_str(),body.size());
 	
 	write(clientFd,packet.c_str(),packet.size());
 }
