@@ -11,7 +11,7 @@
 #include<vector>
 
 TcpServer::TcpServer(int port,int maxEvents)
-	:port_(port),listenFd_(-1),epollFd_(-1),maxEvents_(maxEvents){
+	:port_(port),listenFd_(-1),epollFd_(-1),maxEvents_(maxEvents),threadPool_(4){
 	events_.resize(maxEvents_);
 	initSocket();
 	initEpoll();
@@ -95,16 +95,22 @@ void TcpServer::handleNewConnection(){
 		ev.data.fd=clientFd;
 		epoll_ctl(epollFd_,EPOLL_CTL_ADD,clientFd,&ev);
 
-		//为新连接创建Connection对象
-		connections_[clientFd]=std::make_shared<Connection>(clientFd);
+		{
+			std::lock_guard<std::mutex> lock(connMutex_);
+			connections_[clientFd]=std::make_shared<Connection>(clientFd);
+		}
 		std::cout<<"[Server] New connection, fd="<<clientFd<<std::endl;
 	}
 }
 
 void TcpServer::handleClientData(int clientFd){
-	auto it=connections_.find(clientFd);
-	if(it==connections_.end()) return;
-	Connection& conn=*it->second;
+	std::shared_ptr<Connection> connPtr;
+	{
+		std::lock_guard<std::mutex> lock(connMutex_);
+		auto it=connections_.find(clientFd);
+		if(it==connections_.end()) return;
+		connPtr=it->second;
+	}
 
 	char buf[1024];
 
@@ -114,24 +120,29 @@ void TcpServer::handleClientData(int clientFd){
 		if(n<0){
 			if(errno==EAGAIN||errno==EWOULDBLOCK) break;//数据读完了
 			std::cerr<<"[Server] read() error, fd="<<clientFd<<std::endl;
+			std::lock_guard<std::mutex> lock(connMutex_);
 			closeConnection(clientFd);
 			return;
 		}else if(n==0){
 			//客户端断开连接
+			std::lock_guard<std::mutex> lock(connMutex_);
 			closeConnection(clientFd);
 			return;
 		}else{
-			conn.buffer().append(buf,n);
+			connPtr->buffer().append(buf,n);
 			//每次收到数据，更新活跃时间
-			conn.updateActiveTime();
+			connPtr->updateActiveTime();
 		}
 	}
 
 	//循环读出所有完整消息
 	uint16_t msgType;
 	std::string body;
-	while(conn.buffer().retrieveMessage(msgType,body)){
-		dispatchMessage(conn,msgType,body);
+	while(connPtr->buffer().retrieveMessage(msgType,body)){
+		threadPool_.submit([this,connPtr,msgType,body](){
+			std::lock_guard<std::mutex> lock(connMutex_);
+			dispatchMessage(*connPtr,msgType,body);
+		});
 	}
 }
 
@@ -302,6 +313,7 @@ void TcpServer::broadcastToRoom(int roomId,uint16_t msgType,const std::string& b
 void TcpServer::checkHeartbeat(){
 	//先收集要踢掉的fd，避免遍历时修改map
 	std::vector<int> toClose;
+	std::lock_guard<std::mutex> lock(connMutex_);
 	for(auto& [fd,conn]:connections_) {
 		if(conn->idleSeconds()>HEARTBEAT_TIMEOUT){
 			std::cout<<"[Server] Heartbeat timeout, fd="<<fd

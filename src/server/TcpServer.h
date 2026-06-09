@@ -1,10 +1,12 @@
 #pragma once
 #include"server/Connection.h"
 #include"server/RoomManager.h"
+#include"server/ThreadPool.h"
 #include<sys/epoll.h>
 #include<vector>
 #include<unordered_map>
 #include<memory>
+#include<mutex>
 
 class TcpServer{
 public:
@@ -47,6 +49,11 @@ private:
 	int epollFd_;
 	int maxEvents_;
 	std::vector<epoll_event> events_;
+
+	//保护connections_的锁，工作线程会访问它
+	std::mutex connMutex_;
+
+	ThreadPool threadPool_;
 
 	//每个连接fd对应一个Connection
 	std::unordered_map<int,std::shared_ptr<Connection>> connections_;
